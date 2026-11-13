@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AgriSense Admin</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f7f9f6; color: #1b2e1e; }
+  header { background: #2e7d32; color: white; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  nav { display: flex; gap: 8px; padding: 12px 24px; background: white; border-bottom: 1px solid #ddd; }
+  nav button { background: none; border: 1px solid #2e7d32; color: #2e7d32; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+  nav button.active { background: #2e7d32; color: white; }
+  main { padding: 24px; max-width: 1000px; margin: auto; }
+  .stats { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-card { background: white; border-radius: 10px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-width: 140px; }
+  .stat-card .num { font-size: 28px; font-weight: bold; color: #2e7d32; }
+  .stat-card .label { color: #62716a; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #eee; font-size: 14px; }
+  th { background: #e8f5e9; color: #1b2e1e; }
+  .empty { color: #62716a; padding: 20px; text-align: center; }
+  .base-url { padding: 12px 24px; font-size: 12px; color: #62716a; }
+  input#base { padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; width: 260px; }
+</style>
+</head>
+<body>
+<header><h1>🌾 AgriSense Admin</h1></header>
+<div class="base-url">
+  Backend API base: <input id="base" value="http://127.0.0.1:5000/api" />
+  <button onclick="loadAll()">Connect</button>
+</div>
+<nav>
+  <button class="tab active" data-tab="stats" onclick="showTab('stats')">Overview</button>
+  <button class="tab" data-tab="farmers" onclick="showTab('farmers')">Farmers</button>
+  <button class="tab" data-tab="crops" onclick="showTab('crops')">Crops</button>
+  <button class="tab" data-tab="pests" onclick="showTab('pests')">Pests</button>
+  <button class="tab" data-tab="diseases" onclick="showTab('diseases')">Diseases</button>
+  <button class="tab" data-tab="alerts" onclick="showTab('alerts')">Alerts</button>
+</nav>
+<main id="content"><p class="empty">Loading...</p></main>
+
+<script>
+let API_BASE = document.getElementById('base').value;
+
+async function fetchJson(path) {
+  const res = await fetch(API_BASE + path);
+  if (!res.ok) throw new Error('Request failed: ' + path);
+  return res.json();
+}
+
+function table(headers, rows) {
+  if (!rows.length) return '<p class="empty">No data.</p>';
+  let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  for (const row of rows) {
+    html += '<tr>' + row.map(c => `<td>${c ?? '—'}</td>`).join('') + '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+async function showTab(tab) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  const content = document.getElementById('content');
+  content.innerHTML = '<p class="empty">Loading...</p>';
+  try {
+    if (tab === 'stats') {
+      const { data } = await fetchJson('/admin/stats');
+      content.innerHTML = `<div class="stats">
+        <div class="stat-card"><div class="num">${data.total_farmers}</div><div class="label">Farmers</div></div>
+        <div class="stat-card"><div class="num">${data.total_crop_records}</div><div class="label">Crop Records</div></div>
+        <div class="stat-card"><div class="num">${data.total_alerts}</div><div class="label">Alerts Generated</div></div>
+        <div class="stat-card"><div class="num">${data.total_disease_checks}</div><div class="label">Disease Checks</div></div>
+      </div>`;
+    } else if (tab === 'farmers') {
+      const { data } = await fetchJson('/admin/farmers');
+      content.innerHTML = table(['Name','Email','Mobile','Location','Joined'],
+        data.map(f => [f.full_name, f.email, f.mobile, f.location, f.created_at]));
+    } else if (tab === 'crops') {
+      const { data } = await fetchJson('/admin/crops');
+      content.innerHTML = table(['Farmer','Crop','Growth Stage','Active'],
+        data.map(c => [c.farmer_name, c.crop_name, c.growth_stage, c.is_active ? 'Yes' : 'No']));
+    } else if (tab === 'pests') {
+      const { data } = await fetchJson('/admin/pests');
+      content.innerHTML = table(['Name','Affected Crops','Description'],
+        data.map(p => [p.name, p.affected_crops, p.description]));
+    } else if (tab === 'diseases') {
+      const { data } = await fetchJson('/admin/diseases');
+      content.innerHTML = table(['Name','Description','Treatment'],
+        data.map(d => [d.name, d.description, d.treatment]));
+    } else if (tab === 'alerts') {
+      const { data } = await fetchJson('/admin/alerts');
+      content.innerHTML = table(['Type','Severity','Title','Message','Created'],
+        data.map(a => [a.type, a.severity, a.title, a.message, a.created_at]));
+    }
+  } catch (e) {
+    content.innerHTML = `<p class="empty">Could not load data: ${e.message}. Check the backend API base URL above.</p>`;
+  }
+}
+
+function loadAll() {
+  API_BASE = document.getElementById('base').value;
+  showTab(document.querySelector('.tab.active').dataset.tab);
+}
+
+showTab('stats');
+</script>
+</body>
+</html>
